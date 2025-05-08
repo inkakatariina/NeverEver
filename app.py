@@ -97,5 +97,5 @@ def get_question_answers(question_id):
     } for answer in answers]
     return jsonify(result)
 
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)  # Tämä vastaa Renderin vaatimia asetuksia
