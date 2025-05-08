@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: neverever
+    env: python
+    buildCommand: |
+      cd my-backend
+      pip install -r requirements.txt
+    startCommand: python my-backend/app.py  # Muuta tämä vastaamaan oman sovelluksesi käynnistyskomentoa
+    envVars:
+      - key: DATABASE_URL
+        value: your-database-url
