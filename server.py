@@ -11,3 +11,5 @@ def create_game():
 
 if __name__ == '__main__':
     socketio.run(app)
+import eventlet
+eventlet.monkey_patch()
