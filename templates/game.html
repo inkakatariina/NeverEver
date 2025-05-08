@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  <title>Never Have I Ever - Game</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1 id="game-title">Never Have I Ever</h1>
+    <div class="game-details">
+      <span id="player-count-display">Players: <span id="player-count">0</span></span>
+    </div>
+  </header>
+
+  <!-- Waiting area (before game starts) -->
+  <div class="game-section" id="waiting-area">
+    <h2>Waiting for Game to Start</h2>
+    <p>The host will start the game once everyone has joined.</p>
+    
+    <div class="players-container">
+      <h3>Players in the game:</h3>
+      <ul id="players-list"></ul>
+    </div>
+    
+    <div id="host-controls" class="hidden">
+      <h3>Host Controls</h3>
+      <p>You are the host of this game. Start the game when everyone has joined.</p>
+      <button id="start-game-btn">Start Game</button>
+    </div>
+  </div>
+
+  <!-- Question area (during the game) -->
+  <div class="game-section hidden" id="question-area">
+    <div class="question-container">
+      <p id="current-question" class="game-question"></p>
+      
+      <div id="answer-buttons" class="answer-buttons">
+        <button id="answer-yes" class="answer-yes">I Have</button>
+        <button id="answer-no" class="answer-no">I Have Not</button>
+      </div>
+    </div>
+    
+    <div id="answers-area" class="answers-container hidden">
+      <h3>Answers:</h3>
+      <div id="answers-list"></div>
+    </div>
+    
+    <div id="action-buttons" class="action-buttons">
+      <button id="next-question" class="hidden">Next Question</button>
+    </div>
+  </div>
+  
+  <!-- Notification area -->
+  <div id="notification" class="notification hidden"></div>
+
+  <script src="game.js"></script>
+</body>
+</html>

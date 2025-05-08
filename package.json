@@ -1,0 +1,15 @@
+{
+    "name": "inkalindstrom",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+      "start": "node server.js",
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+      "express": "^4.17.1",
+      "socket.io": "^4.8.1",
+      "ws": "^8.18.2"
+    }
+  }
+  
