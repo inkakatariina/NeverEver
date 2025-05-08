@@ -16,5 +16,10 @@ def create_game():
 def game():
     return render_template("game.html")  # Tämä lataa pelin sivun
 
+@app.route('/')
+def home():
+    return 'Hello, World!'  # Or your actual homepage content
+
+
 if __name__ == '__main__':
     socketio.run(app, host="0.0.0.0", port=10000)
