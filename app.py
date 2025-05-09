@@ -1,106 +1,104 @@
+from flask import Flask, render_template, request, jsonify, session
+from flask_socketio import SocketIO, join_room, leave_room, emit
 import os
-import logging
-from flask import Flask, send_from_directory, jsonify
-from flask_socketio import SocketIO
-from models import db, Game, Player, Question, Answer
-from api_routes import api
+import json
+import random
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your_secret_key_here'
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Flask app
-app = Flask(__name__, static_folder='.', static_url_path='')
+# Load game questions from JSON file
+with open('data.json', 'r') as file:
+    data = json.load(file)
+    questions = data['questions']
 
-# DATABASE URL - PostgreSQL fix for SQLAlchemy
-database_url = os.environ.get('DATABASE_URL')
-if database_url and database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+# Store game rooms
+rooms = {}
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///neverhaveiever.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = os.environ.get('SECRET_KEY', 'dev_key')
-
-# Initialize extensions
-db.init_app(app)
-socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
-
-# Register API routes
-app.register_blueprint(api, url_prefix='/api')
-
-# Register socket events
-from socket_events import register_socket_events
-register_socket_events(socketio)
-
-# Ensure database tables are created
-with app.app_context():
-    db.create_all()
-
-# Serve the index.html for the root
 @app.route('/')
 def index():
-    return send_from_directory('.', 'index.html')
+    return render_template('index.html')
 
-# Serve other files (e.g., JS/CSS from root)
-@app.route('/<path:path>')
-def serve_file(path):
-    return send_from_directory('.', path)
+@app.route('/game/<room_id>')
+def game(room_id):
+    if room_id not in rooms:
+        return "Room not found", 404
+    return render_template('game.html', room_id=room_id)
 
-# API: Get active games
-@app.route('/api/games', methods=['GET'])
-def get_games():
-    games = Game.query.filter_by(is_active=True).all()
-    result = [{
-        'id': game.id,
-        'created_at': game.created_at,
-        'player_count': len(game.players)
-    } for game in games]
-    return jsonify(result)
-
-# API: Get single game by ID
-@app.route('/api/games/<game_id>', methods=['GET'])
-def get_game(game_id):
-    game = Game.query.get_or_404(game_id)
-    result = {
-        'id': game.id,
-        'host_id': game.host_id,
-        'created_at': game.created_at,
-        'is_active': game.is_active,
-        'game_modes': game.game_modes,
-        'players': [{
-            'id': player.id,
-            'name': player.name,
-            'is_host': player.is_host
-        } for player in game.players]
+@app.route('/api/create-room', methods=['POST'])
+def create_room():
+    room_id = generate_room_id()
+    rooms[room_id] = {
+        'players': [],
+        'current_question_index': 0,
+        'questions': random.sample(questions, 30)  # Select 30 random questions
     }
-    return jsonify(result)
+    return jsonify({'room_id': room_id})
 
-# API: Get questions for a game
-@app.route('/api/games/<game_id>/questions', methods=['GET'])
-def get_game_questions(game_id):
-    _ = Game.query.get_or_404(game_id)
-    questions = Question.query.filter_by(game_id=game_id).order_by(Question.order_index).all()
-    result = [{
-        'id': q.id,
-        'text': q.text,
-        'category': q.category,
-        'order_index': q.order_index
-    } for q in questions]
-    return jsonify(result)
+def generate_room_id():
+    while True:
+        room_id = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=6))
+        if room_id not in rooms:
+            return room_id
 
-# API: Get answers for a question
-@app.route('/api/questions/<question_id>/answers', methods=['GET'])
-def get_question_answers(question_id):
-    answers = Answer.query.filter_by(question_id=question_id).all()
-    result = [{
-        'id': a.id,
-        'player_id': a.player_id,
-        'player_name': a.player.name,
-        'answer': a.answer,
-        'answered_at': a.answered_at
-    } for a in answers]
-    return jsonify(result)
+@socketio.on('join')
+def on_join(data):
+    username = data['username']
+    room_id = data['room']
+    
+    if room_id not in rooms:
+        emit('error', {'message': 'Room not found'})
+        return
+    
+    join_room(room_id)
+    rooms[room_id]['players'].append({'username': username, 'id': request.sid})
+    
+    emit('room_update', {'players': [p['username'] for p in rooms[room_id]['players']]}, room=room_id)
+    emit('joined', {'username': username}, room=room_id)
 
-# Main entry point - use SocketIO to run the app
-if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=10000)
+@socketio.on('start_game')
+def on_start_game(data):
+    room_id = data['room']
+    if room_id in rooms:
+        rooms[room_id]['current_question_index'] = 0
+        emit('game_started', room=room_id)
+        send_next_question(room_id)
+
+@socketio.on('next_question')
+def on_next_question(data):
+    room_id = data['room']
+    if room_id in rooms:
+        send_next_question(room_id)
+
+def send_next_question(room_id):
+    room = rooms[room_id]
+    if room['current_question_index'] < len(room['questions']):
+        question = room['questions'][room['current_question_index']]
+        room['current_question_index'] += 1
+        emit('new_question', {
+            'question': question,
+            'question_number': room['current_question_index'],
+            'total_questions': len(room['questions'])
+        }, room=room_id)
+    else:
+        emit('game_over', room=room_id)
+
+@socketio.on('disconnect')
+def on_disconnect():
+    for room_id in list(rooms.keys()):
+        room = rooms[room_id]
+        for i, player in enumerate(room['players']):
+            if player['id'] == request.sid:
+                username = player['username']
+                room['players'].pop(i)
+                emit('player_left', {'username': username}, room=room_id)
+                emit('room_update', {'players': [p['username'] for p in room['players']]}, room=room_id)
+                
+                # Remove empty rooms
+                if not room['players']:
+                    rooms.pop(room_id)
+                break
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)
